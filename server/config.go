@@ -18,7 +18,7 @@ type Config struct {
 	DataShard    int    `json:"datashard"`
 	ParityShard  int    `json:"parityshard"`
 	DSCP         int    `json:"dscp"`
-	NoComp       bool   `json:"nocomp"`
+	Comp         bool   `json:"comp"`
 	AckNodelay   bool   `json:"acknodelay"`
 	NoDelay      int    `json:"nodelay"`
 	Interval     int    `json:"interval"`
@@ -33,7 +33,6 @@ type Config struct {
 	UDP          bool   `json:"udp"`
 	Pprof        string `json:"pprof"`
 	DefaultProxy bool   `json:"proxy"`
-	ShadowProxy  bool   `json:"ssproxy"`
 }
 
 func parseJSONConfig(config *Config, path string) error {

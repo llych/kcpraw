@@ -378,12 +378,12 @@ func main() {
 		},
 		cli.IntFlag{
 			Name:  "datashard,ds",
-			Value: 10,
+			Value: 0,
 			Usage: "set reed-solomon erasure coding - datashard",
 		},
 		cli.IntFlag{
 			Name:  "parityshard,ps",
-			Value: 3,
+			Value: 0,
 			Usage: "set reed-solomon erasure coding - parityshard",
 		},
 		cli.IntFlag{
@@ -392,8 +392,8 @@ func main() {
 			Usage: "set dscp(6bit)",
 		},
 		cli.BoolFlag{
-			Name:  "nocomp",
-			Usage: "disable compression",
+			Name:  "comp",
+			Usage: "enable compression",
 		},
 		cli.BoolFlag{
 			Name:   "acknodelay",
@@ -455,9 +455,9 @@ func main() {
 			Value: "",
 			Usage: "hostname for obfuscating (Experimental)",
 		},
-		cli.BoolFlag{
-			Name:  "nohttp",
-			Usage: "don't send http request after tcp 3-way handshake",
+		cli.StringFlag{
+			Name:  "obfs",
+			Usage: "obfuscating method, http/tls",
 		},
 		cli.IntFlag{
 			Name:  "scavengettl",
@@ -491,7 +491,7 @@ func main() {
 		},
 		cli.BoolFlag{
 			Name:  "proxy",
-			Usage: "enable default proxy(socks4/socks4a/socks5/http)",
+			Usage: "enable default proxy(socks4/socks4a/socks5/http/shadowsocks)",
 		},
 		cli.BoolFlag{
 			Name:  "udprelay",
@@ -500,10 +500,6 @@ func main() {
 		cli.StringFlag{
 			Name:  "tunnels",
 			Usage: "provide additional tcp/udp tunnels, eg: udp,:10000,8.8.8.8:53;tcp,:10080,www.google.com:80",
-		},
-		cli.BoolFlag{
-			Name:  "tls",
-			Usage: "enable tls-obfs",
 		},
 	}
 	myApp.Action = func(c *cli.Context) error {
@@ -521,7 +517,7 @@ func main() {
 		config.DataShard = c.Int("datashard")
 		config.ParityShard = c.Int("parityshard")
 		config.DSCP = c.Int("dscp")
-		config.NoComp = c.Bool("nocomp")
+		config.Comp = c.Bool("comp")
 		config.AckNodelay = c.Bool("acknodelay")
 		config.NoDelay = c.Int("nodelay")
 		config.Interval = c.Int("interval")
@@ -532,7 +528,7 @@ func main() {
 		config.Log = c.String("log")
 		config.SnmpLog = c.String("snmplog")
 		config.SnmpPeriod = c.Int("snmpperiod")
-		config.NoHTTP = c.Bool("nohttp")
+		config.Obfs = c.String("obfs")
 		config.Host = c.String("host")
 		config.ScavengeTTL = c.Int("scavengettl")
 		config.MulConn = c.Int("mulconn")
@@ -543,7 +539,6 @@ func main() {
 		config.ChnRoute = c.String("chnroute")
 		config.UDPRelay = c.Bool("udprelay")
 		config.Proxy = c.Bool("proxy")
-		config.TLS = c.Bool("tls")
 		tunnels := c.String("tunnels")
 
 		if c.String("c") != "" {
@@ -610,8 +605,8 @@ func main() {
 			block, _ = kcp.NewAESBlockCrypt(pass)
 		}
 
-		if !config.NoHTTP && len(config.Host) == 0 {
-			config.NoHTTP = true
+		if len(config.Host) == 0 {
+			config.Obfs = ""
 		}
 
 		if len(tunnels) != 0 {
@@ -637,7 +632,7 @@ func main() {
 		log.Println("nodelay parameters:", config.NoDelay, config.Interval, config.Resend, config.NoCongestion)
 		log.Println("remote address:", config.RemoteAddr)
 		log.Println("sndwnd:", config.SndWnd, "rcvwnd:", config.RcvWnd)
-		log.Println("compression:", !config.NoComp)
+		log.Println("compression:", config.Comp)
 		log.Println("mtu:", config.MTU)
 		log.Println("datashard:", config.DataShard, "parityshard:", config.ParityShard)
 		log.Println("acknodelay:", config.AckNodelay)
@@ -653,7 +648,7 @@ func main() {
 		log.Println("udp mode:", config.UDP)
 		log.Println("pprof listen at:", config.Pprof)
 		log.Println("dummpy:", !config.NoDummpy)
-		log.Println("nohttp:", config.NoHTTP)
+		log.Println("obfs:", config.Obfs)
 		log.Println("httphost:", config.Host)
 		log.Println("proxy:", config.Proxy)
 		log.Println("proxylist:", config.ProxyList)
@@ -693,11 +688,18 @@ func main() {
 		}
 
 		if config.Proxy {
-			config.proxyAcceptor = ss.GetSocksAcceptor(args)
+			args["password"] = config.Key
+			config.proxyAcceptor = ss.GetShadowAcceptor(args)
 		}
 
-		kcpraw.SetNoHTTP(config.NoHTTP)
-		kcpraw.SetTLS(config.TLS)
+		switch config.Obfs {
+		case "tls":
+			kcpraw.SetNoHTTP(true)
+			kcpraw.SetTLS(true)
+		case "http":
+		default:
+			kcpraw.SetNoHTTP(true)
+		}
 		kcpraw.SetHost(config.Host)
 		kcpraw.SetDSCP(config.DSCP)
 		kcpraw.SetIgnRST(true)
@@ -728,11 +730,13 @@ func main() {
 
 			// stream multiplex
 			var session *smux.Session
-			if config.NoComp {
-				session, err = smux.Client(kcpconn, smuxConfig)
+			var conn io.ReadWriteCloser
+			if config.Comp {
+				conn = newCompStream(kcpconn)
 			} else {
-				session, err = smux.Client(newCompStream(kcpconn), smuxConfig)
+				conn = kcpconn
 			}
+			session, err = smux.Client(conn, smuxConfig)
 			if err != nil {
 				return nil, errors.Wrap(err, "createConn()")
 			}

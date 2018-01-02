@@ -22,7 +22,7 @@ type Config struct {
 	DataShard    int    `json:"datashard"`
 	ParityShard  int    `json:"parityshard"`
 	DSCP         int    `json:"dscp"`
-	NoComp       bool   `json:"nocomp"`
+	Comp         bool   `json:"comp"`
 	AckNodelay   bool   `json:"acknodelay"`
 	NoDelay      int    `json:"nodelay"`
 	Interval     int    `json:"interval"`
@@ -33,7 +33,7 @@ type Config struct {
 	Log          string `json:"log"`
 	SnmpLog      string `json:"snmplog"`
 	SnmpPeriod   int    `json:"snmpperiod"`
-	NoHTTP       bool   `json:"nohttp"`
+	Obfs         string `json:"obfs"`
 	Host         string `json:"host"`
 	ScavengeTTL  int    `json:"scavengettl"`
 	MulConn      int    `json:"mulconn"`
@@ -44,7 +44,6 @@ type Config struct {
 	ChnRoute     string `json:"chnroute"`
 	UDPRelay     bool   `json:"udprelay"`
 	Proxy        bool   `json:"proxy"`
-	TLS          bool   `json:"tls"`
 
 	Tunnels []*tunnelConfig `json:"tunnels"`
 
